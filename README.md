@@ -46,7 +46,7 @@ cd skybound-flight
 python3 -m http.server 5178 --bind 127.0.0.1 --directory dist
 ```
 
-在 Safari、Chrome 或支持 WebGL 的浏览器打开 **http://127.0.0.1:5178/**。macOS 可另开终端运行 `open http://127.0.0.1:5178/`。结束服务器按 Ctrl+C。
+在 Safari、Chrome 或支持 WebGL 的浏览器打开 [http://127.0.0.1:5178/](http://127.0.0.1:5178/)。macOS 可另开终端运行 `open http://127.0.0.1:5178/`。结束服务器按 Ctrl+C。
 
 ## 验证
 
