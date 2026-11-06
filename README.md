@@ -1,2 +1,74 @@
-# skybound-flight
-SKYBOUND · 云端飞行 — An original browser jet game with low-altitude challenges, procedural scenery and music.
+# SKYBOUND · 云端飞行 / JX-9
+
+驾驶原创 JX-9 双发喷气机，在青屿群岛高速掠海。Three.js / WebGL，完整静态 ES 模块源码；模型、纹理、海面、天空与音乐全部在本地生成，无运行时 CDN、无账号、无后端。
+
+**[在线游玩](https://skybound-flight-yl1030.yanglinchasel.chatgpt.site)** · **[源码](https://github.com/LinYangBIT/skybound-flight)**
+
+## 玩法
+
+- **90 秒挑战**：默认以 864 km/h 空中入场。空速至少 180 m/s（约 650 km/h）、离地 15–150 米时获得低空分；连续保持每 6 秒提高倍率，最高 ×4。短暂拉起有 1.5 秒宽限，超过后倍率重置。90 秒结束生成飞行报告；坠机或提前着陆也会记录本次得分。挑战模式没有额外着陆奖金。
+- **自由掠海**：无限时练习与低空积分。在暂停菜单选择“结束本次飞行并记录得分”即可安全结算。
+- **起降挑战**：跑道起飞，穿越五个导航航点，返航着陆并刹停。
+
+正常满油门约 1,080 km/h；加力最高 1,548 km/h。速度越快越需提前规划转向。挑战纪录、声音与画质设置只存于当前浏览器，**不跨设备同步**。
+
+## 操控
+
+| 操作 | 键盘 / 触屏 |
+| --- | --- |
+| 抬头 / 压低 | S / W 或 ↓ / ↑；摇杆向下 / 向上 |
+| 左右转弯 | A / D 或 ← / →；摇杆左右 |
+| 方向舵 / 地面转向 | Q / E |
+| 油门增加 / 减少 | Shift / Ctrl；底部油门滑块 |
+| 空中加力 / 地面刹车 | 长按空格；触屏“加力/刹车” |
+| 空气刹车 | 长按 B；触屏“减速” |
+| 起落架 / 襟翼 | G / F；仪表按钮 |
+| 切换追尾、驾驶舱、全景 | C；视角按钮 |
+| 暂停 / 恢复 | P / Esc；暂停按钮 |
+
+加力能量约供连续五秒使用，松开恢复；耗尽后需松开加力键重新启动。起飞达到 210 km/h 后抬头。着陆收油并按 B 减速，放下起落架和襟翼，以 220–300 km/h 对准跑道缓慢下降，接地后刹车。
+
+触控根据设备能力自动开启，横屏手机和平板均支持；也可在右上角“声音与画质设置”手动打开。新玩家默认开启原创配乐及音效，浏览器限制自动播放时会在首次真实操作后启动。音乐和音效可分别开关、调音量；暂停和切后台会停止飞行声音及音乐调度。
+
+## 画面与性能
+
+程序生成的灰色金属喷气机、三维驾驶舱、侵蚀山体、细节海面、环境反射与分层云。精细档启用阴影与克制的速度后处理；流畅档降低分辨率并省略阴影和后处理；自动档为触屏选择较低开销，连续较慢帧时进一步降低渲染开销。
+
+碰撞、地形预警和离地高度直接使用可见地形网格的三角插值，高速移动进行沿路径扫掠检查。物理为便于游玩的简化模型，不用于真实飞行训练。场景是程序生成的真实感画面，不是照片、卫星影像或真实地点重建。
+
+## 本地运行
+
+需要 Python 3；可选 Node.js 22+ 用于测试。无需安装 npm 包或构建。`dist/` 就是手写游戏源码，并非压缩后的构建副本。
+
+```sh
+git clone https://github.com/LinYangBIT/skybound-flight.git
+cd skybound-flight
+python3 -m http.server 5178 --bind 127.0.0.1 --directory dist
+```
+
+在 Safari、Chrome 或支持 WebGL 的浏览器打开 **http://127.0.0.1:5178/**。macOS 可另开终端运行 `open http://127.0.0.1:5178/`。结束服务器按 Ctrl+C。
+
+## 验证
+
+```sh
+node --test physics.test.mjs challenge.test.mjs terrain-sampling.test.mjs
+node --check dist/app.js
+node --check dist/audio.js
+node --check dist/camera-effects.js
+```
+
+27 项自动测试覆盖速度/加力、刹车、起降、失速、帧率一致性、连分/重置/限时结束，以及可见地形与真实 Three.js 射线交点的一致性。
+
+本轮浏览器实测包括完整 90 秒挑战、低空 ×4、加力突破音速、失败/重试、自由飞行结算、设置持久化、音频播放/暂停状态，以及 390×844 和 844×390 视口触控。音频上下文、单一调度器和输出能量已检查；未实际试听，也未进行 iOS/Android 真机性能或音频策略验证。
+
+## 源码
+
+- `dist/app.js`：游戏状态、输入、HUD、相机、碰撞与整合。
+- `dist/physics.js` / `challenge.js`：纯飞行模拟与挑战规则。
+- `dist/environment.js` / `terrain-sampling.js`：场景和网格一致的高度查询。
+- `dist/aircraft.js` / `camera-effects.js`：飞机、驾驶舱与视觉后处理。
+- `dist/audio.js`：原创配乐、音效及浏览器音频生命周期。
+
+## 许可
+
+原创源码和程序资产采用 [MIT License](LICENSE)。Three.js r173 保留自己的 MIT 版权声明，见 [第三方说明](THIRD_PARTY_NOTICES.md) 与 `dist/vendor/LICENSE.three.txt`。公开仓库不含托管账号配置、凭据或其他项目历史。

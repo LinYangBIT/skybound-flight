@@ -1,0 +1,26 @@
+# Local editor, dependency and operating-system state
+.DS_Store
+node_modules/
+.vscode/
+.idea/
+
+# Credentials and deployment-local identity. Existing tracked Sites hosting
+# configuration remains tracked in the original deployment checkout;
+# exclude .openai/ entirely when making a clean public source export.
+.openai/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Preview, test and export artifacts; dist/ is the original runnable source.
+*.log
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+coverage/
+test-results/
+playwright-report/
+screenshots/
