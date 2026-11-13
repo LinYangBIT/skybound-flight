@@ -1,10 +1,11 @@
 import * as THREE from './vendor/three.module.js';
-import { createFlight, resetFlight, stepFlight } from './physics.js?v=3';
-import { createEnvironment } from './environment.js?v=3';
-import { createAircraft } from './aircraft.js?v=3';
-import { createCameraEffects } from './camera-effects.js?v=3';
-import { createFlightAudio } from './audio.js?v=3';
-import { createChallenge, stepChallenge, challengeRank, CHALLENGE_SECONDS } from './challenge.js?v=3';
+import { createFlight, resetFlight, stepFlight } from './physics.js?v=4';
+import { createEnvironment } from './environment.js?v=4';
+import { createAircraft } from './aircraft.js?v=4';
+import { createCameraEffects } from './camera-effects.js?v=4';
+import { createFlightAudio } from './audio.js?v=4';
+import { createFrameMetrics } from './frame-metrics.js?v=4';
+import { createChallenge, stepChallenge, challengeRank, CHALLENGE_SECONDS } from './challenge.js?v=4';
 
 const $ = id => document.getElementById(id);
 const clamp = THREE.MathUtils.clamp;
@@ -38,7 +39,7 @@ const route = [
 ];
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(64, innerWidth / innerHeight, .15, 60000);
-let renderer, env, aircraft, cameraEffects;
+let renderer, env, aircraft, cameraEffects, frameMetrics;
 let lowPassScore = 0, lowPassTime = 0, peakSpeed = 0, renderFov = 64;
 const rings = [];
 const chasePosition = new THREE.Vector3();
@@ -66,9 +67,10 @@ function initialize() {
     renderer.toneMappingExposure = 1.05;
     renderer.shadowMap.enabled = !touchDevice && innerWidth > 760;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    env = createEnvironment(scene);
+    env = createEnvironment(scene, renderer);
     aircraft = createAircraft(scene);
     cameraEffects = createCameraEffects(renderer);
+    frameMetrics = createFrameMetrics($('world'),renderer);
     applyQuality();
     route.forEach((p, index) => {
       const ring = new THREE.Group();
@@ -225,7 +227,12 @@ function applyQuality() {
   const low = quality === 'low' || (quality === 'auto' && (touchDevice || qualityReduced));
   const ratio = low ? (touchDevice ? .85 : 1) : 1.5;
   renderer.setPixelRatio(Math.min(devicePixelRatio, ratio)); renderer.setSize(innerWidth, innerHeight);
-  renderer.shadowMap.enabled = !low;
+  if(renderer.shadowMap.enabled!==!low){
+    renderer.shadowMap.enabled=!low;
+    // Recompile receivers when switching shadow defines; otherwise low quality
+    // may keep sampling the last frozen shadow map while its render pass stops.
+    scene.traverse(object=>{for(const mat of (Array.isArray(object.material)?object.material:[object.material]))if(mat)mat.needsUpdate=true;});
+  }
   cameraEffects?.setQuality(low ? 'low' : 'high'); cameraEffects?.resize(innerWidth, innerHeight);
   $('qualitySelect').value = quality;
   $('qualityStatus').textContent = quality === 'auto' ? `自动 · ${low ? '流畅优先' : '精细画面'}` : low ? '流畅 · 降低渲染开销' : '精细 · 完整光影';
@@ -290,7 +297,7 @@ function updateCamera(dt) {
     const pilot=pilotPosition.copy(aircraft.cockpitViewPoint).applyQuaternion(aircraft.root.quaternion);
     camera.position.set(state.x,state.y,state.z).add(pilot);
     camera.quaternion.copy(aircraft.root.quaternion);
-    camera.rotateX(Math.sin(clockTime*35)*vibration*.012);
+    camera.rotateX(-(innerWidth>=1000&&innerHeight>=600?.27:.105)+Math.sin(clockTime*35)*vibration*.012);
     camera.rotateY(Math.sin(clockTime*29)*vibration*.012);
   } else {
     const distance=cameraMode===2?60:26;
@@ -300,7 +307,7 @@ function updateCamera(dt) {
     camera.position.copy(chasePosition);
     camera.position.y=Math.max(camera.position.y,env.heightAt(camera.position.x,camera.position.z)+4);
     camera.position.addScaledVector(side,Math.sin(clockTime*29)*vibration);
-    aim.set(state.x,state.y+1,state.z).addScaledVector(forward,70);
+    aim.set(state.x,state.y+1,state.z).addScaledVector(forward,cameraMode===2?8:70);
     camera.up.copy(side).multiplyScalar(Math.sin(state.roll*.12));camera.up.y=Math.cos(state.roll*.12);camera.lookAt(aim);
   }
   const desired=!started?57:cameraMode===1?80+(state.boosting?8:0):cameraMode===2?65:68+clamp((state.speed-60)/22,0,14)+(state.boosting?9:0);
@@ -410,12 +417,14 @@ function frame(now) {
   if(quality==='auto'&&!qualityReduced&&playing&&!paused&&!finished){slowFrames=rawDt>.031?slowFrames+dt:Math.max(0,slowFrames-dt*.5);if(slowFrames>3){qualityReduced=true;applyQuality();}}
   if(!paused&&!finished)clockTime+=dt;
   if(playing&&!paused&&!finished)flightStep(mode==='challenge'?Math.min(dt,Math.max(0,CHALLENGE_SECONDS-run.elapsed)):dt);
+  const cpuStart=frameMetrics?.begin();
   env.update(clockTime, weather, camera);
   aircraft.update(state,clockTime,controls.gear);
   if(!paused)updateCamera(dt);
   cameraEffects.render(scene,camera,state,clockTime,playing&&!paused&&!finished);
   if(now-uiTime>80){renderInstruments();updateAudio();uiTime=now;}
   if(toastExpiry&&now>toastExpiry){show('toast',false);toastExpiry=0;}
+  frameMetrics?.end(now,cpuStart,`${playing&&!paused&&!finished?'flight':'menu'}/${quality}/${qualityReduced?'reduced':'full'}/${cameraMode}/${weather}`);
 }
 
 $('startBtn').addEventListener('click',begin);

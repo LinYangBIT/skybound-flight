@@ -256,3 +256,13 @@ html,body{background:#20282e}.topbar{background:linear-gradient(180deg,#111a25a8
 @media (max-width: 760px) and (max-height: 740px) and (orientation: portrait) {
   .gate-cue { top: calc(264px + var(--safe-top)); }
 }
+
+/* In the full desktop cockpit, the aircraft's own MFDs remain visible.
+   Keep direct throttle/gear controls beside them; compact touch layouts retain HUD. */
+@media (min-width:1000px) and (min-height:600px){
+  .cockpit-mode .instrument-dock{left:auto;right:36px;bottom:48px;width:168px;height:auto;padding:15px;display:block}
+  .cockpit-mode .instrument-dock>.instrument,.cockpit-mode .attitude-instrument{display:none}
+  .cockpit-mode .throttle-instrument{min-width:0;padding:0;border:0}
+  .cockpit-mode .map-card,.cockpit-mode .control-hint{display:none}
+  .cockpit-mode .mission-panel{width:224px;padding:18px}
+}

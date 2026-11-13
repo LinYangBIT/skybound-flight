@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#122c38">
 <title>SKYBOUND · 云端飞行</title><meta name="description" content="驾驶 JX-9 喷气机，以 864 km/h 掠过真实感海岸；开启加力突破音速，体验低空高速飞行。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23162e3a'/%3E%3Cpath d='M32 8L37 28L56 41V47L36 40V52L43 57H21L28 52V40L8 47V41L27 28Z' fill='%23efb57b'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="./style.css?v=3">
+<link rel="stylesheet" href="./style.css?v=4">
 </head>
 <body>
 <main id="app">
@@ -62,7 +62,7 @@
 <div class="throttle-instrument"><div class="instrument-label">THROTTLE <span id="throttleValue">0%</span></div><input id="throttleSlider" type="range" min="0" max="100" value="0" aria-label="油门百分比"><div class="flight-switches"><button id="gearBtn" class="selected" title="起落架 G"><span class="state-dot"></span>起落架</button><button id="flapsBtn" title="襟翼 F"><span class="state-dot"></span>襟翼</button></div></div>
 </section>
 <div class="map-card glass"><div class="map-caption"><span>导航地图</span><span>↗ N</span></div><canvas id="map" width="380" height="260" aria-label="飞行导航地图"></canvas><div class="map-footer"><span><i></i> 你的飞机</span><span>5 km</span></div></div>
-<div class="bottom-meta"><span>JX-9 FLIGHT SIMULATOR <i>03</i></span><span id="bottomStatus">准备就绪 · 享受飞行</span><span class="desktop-only">耳机体验更佳 ↗</span></div>
+<div class="bottom-meta"><span>JX-9 FLIGHT SIMULATOR <i>04</i></span><span id="bottomStatus">准备就绪 · 享受飞行</span><span class="desktop-only">耳机体验更佳 ↗</span></div>
 <div id="touchControls" class="touch-controls hidden"><div id="joystick" aria-label="拖动摇杆控制飞机"><span id="joystickKnob"></span><i>俯仰 / 转弯</i></div><div class="touch-actions"><button id="touchBrake">加力</button><button id="touchAirbrake">减速</button><button id="touchUp">抬头 ↑</button></div></div>
 <div id="pauseOverlay" class="modal-backdrop hidden"><section class="modal glass"><div class="eyebrow">TAKE A BREATH</div><h2>天空，等你回来。</h2><p>飞行已暂停。准备好后，继续你的旅程。</p><button id="resumeBtn" class="primary-btn">继续飞行 <span>↗</span></button><button id="pauseRestart" class="secondary-btn">重新开始</button><button id="endFlightBtn" class="secondary-btn hidden">结束本次飞行并记录得分</button><button id="pauseHome" class="secondary-btn">返回机库</button></section></div>
 <div id="resultOverlay" class="modal-backdrop hidden"><section class="modal glass"><div class="eyebrow" id="resultEyebrow">FLIGHT REPORT</div><h2 id="resultTitle">旅程暂告一段落</h2><p id="resultText"></p><div id="resultStats" class="result-stats"></div><button id="retryBtn" class="primary-btn">再飞一次 <span>↗</span></button><button id="homeBtn" class="secondary-btn">返回机库</button></section></div>
@@ -70,5 +70,5 @@
 <div id="audioOverlay" class="modal-backdrop hidden"><section class="modal audio-modal glass" role="dialog" aria-modal="true" aria-labelledby="audioTitle"><div class="eyebrow">FLIGHT PREFERENCES</div><h2 id="audioTitle">声音与画质</h2><p>原创配乐会随加力和低空连分变化。设置保存在当前浏览器。</p><div class="audio-row"><label for="musicToggle">背景配乐</label><input id="musicToggle" type="checkbox" checked></div><div class="audio-volume"><label for="musicVolume">音乐音量</label><input id="musicVolume" type="range" min="0" max="100" value="42"></div><div class="audio-row"><label for="sfxToggle">引擎与提示音</label><input id="sfxToggle" type="checkbox" checked></div><div class="audio-volume"><label for="sfxVolume">音效音量</label><input id="sfxVolume" type="range" min="0" max="100" value="70"></div><div class="audio-row"><label for="touchToggle">显示触屏操控</label><input id="touchToggle" type="checkbox"></div><label for="qualitySelect">画面质量</label><select id="qualitySelect"><option value="auto">自动适配</option><option value="high">精细画面</option><option value="low">流畅优先</option></select><p id="qualityStatus">自动适配</p><p id="audioStatus" aria-live="polite">操作游戏后自动播放</p><button id="closeAudio" class="primary-btn">完成设置 <span>↗</span></button></section></div>
 <div id="loading" class="loading"><span class="loader"></span><span id="loadingText">正在准备真实感海岸与 JX-9</span></div>
 </main>
-<script type="module" src="./app.js?v=3"></script>
+<script type="module" src="./app.js?v=4"></script>
 </body></html>
