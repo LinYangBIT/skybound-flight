@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { createFlight, resetFlight, stepFlight } from './dist/physics.js';
 
-const source = await readFile(new URL('./dist/physics.js', import.meta.url), 'utf8');
-const { createFlight, resetFlight, stepFlight } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 function simulate(state, input, seconds, fps = 60) {
   for (let i = 0; i < Math.round(seconds * fps); i++) stepFlight(state, input, 1 / fps);
   return state;
@@ -27,7 +25,7 @@ test('parked aircraft stays stationary even if afterburner is requested', () => 
   assert.equal(state.hasFlown, false);
   assert.equal(state.landed, false);
   assert.equal(state.y, 11.8);
-  assert.equal(state.z, 650);
+  assert.equal(state.z, 1500);
   assert.equal(state.speed, 0);
   assert.equal(state.boosting, false);
   assert.equal(state.boostEnergy, 100);
@@ -42,7 +40,7 @@ test('takeoff requires elevator and rotation speed; runway acceleration is brisk
   assert.equal(state.crashed, false);
   assert.equal(state.grounded, false);
   assert.ok(state.y > 25);
-  assert.ok(state.z < 650);
+  assert.ok(state.z < 1500);
 });
 
 test('neutral assistance levels the wings and returns to trim promptly', () => {
@@ -132,10 +130,27 @@ test('a gentle aligned landing records touchdown and brakes to a stop', () => {
   assert.equal(state.crashed, false);
 });
 
-test('the runway permits approaches in both directions', () => {
-  const state = touchdown({ heading: Math.PI });
-  assert.equal(state.landed, true);
-  assert.equal(state.crashed, false);
+test('both runway extensions support touchdown and rollout to a full stop', () => {
+  for (const end of [-1, 1]) {
+    const state = touchdown({ heading: end < 0 ? Math.PI : 0, z: end * 1770 });
+    assert.equal(state.landed, true);
+    simulate(state, { throttle: 0, brake: true }, 5);
+    assert.equal(state.speed, 0);
+    assert.equal(state.crashed, false);
+    assert.ok(Math.abs(state.z) > 900);
+  }
+});
+
+test('ground roll over either threshold leaves the paved strip', () => {
+  for (const end of [-1, 1]) {
+    const state = Object.assign(createFlight(), {
+      heading: end > 0 ? Math.PI : 0, z: end * 1780, speed: 50
+    });
+    simulate(state, { throttle: 0 }, .6);
+    assert.equal(state.crashed, true);
+    assert.match(state.crashReason, /冲出跑道/);
+    assert.ok(Math.abs(state.z) > 1800);
+  }
 });
 
 test('unsafe touchdown configurations crash with useful reasons and freeze', () => {

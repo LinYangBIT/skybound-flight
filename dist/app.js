@@ -1,12 +1,25 @@
 import * as THREE from './vendor/three.module.js';
-import { createFlight, resetFlight, stepFlight } from './physics.js?v=4';
-import { createEnvironment } from './environment.js?v=4';
-import { createAircraft } from './aircraft.js?v=4';
-import { createCameraEffects } from './camera-effects.js?v=4';
-import { createFlightAudio } from './audio.js?v=4';
-import { createFrameMetrics } from './frame-metrics.js?v=4';
-import { createChallenge, stepChallenge, challengeRank, CHALLENGE_SECONDS } from './challenge.js?v=4';
+import { createFlight, resetFlight, stepFlight } from './physics.js?v=5';
+import { createEnvironment } from './environment.js?v=5';
+import { createAircraft } from './aircraft.js?v=5';
+import { createCameraEffects } from './camera-effects.js?v=5';
+import { createFlightAudio } from './audio.js?v=5';
+import { createFrameMetrics } from './frame-metrics.js?v=5';
+import { createChallenge, stepChallenge, challengeRank, CHALLENGE_SECONDS } from './challenge.js?v=5';
 
+import { RUNWAY_HALF_LENGTH, RUNWAY_START_Z } from './airfield.js?v=5';
+import { createFighterCourse, fighterSpawn, stepFighterCourse, fighterGuidance, fighterLessonInput, createFighterScenery } from './fighter-course.js?v=5';
+import { createCivilOperation, stepCivilOperation, civilBrief, civilAction } from './civil-operations.js?v=5';
+import { createCivilModel } from './civil-model.js?v=5';
+
+const tracks = {
+  fighter: { title:'战斗机飞行课', intro:'从 3.6 公里跑道起飞，穿过楼群和山口，爬升穿云后返场着陆。', entries:[['takeoff','完整任务 · 跑道起飞'],['flight','空中练习 · 楼群至巡航'],['landing','专项练习 · 最后进近']] },
+  civil: { title:'民航值飞课', intro:'从停机位出发。收回廊桥，跟随牵引车推出，完成起降，再把客机停回廊桥。', entries:[['departure','完整航班 · 廊桥出发'],['approach','专项练习 · 进近至靠桥'],['arrival','专项练习 · 滑行与停靠']] },
+  classic: { title:'低空掠海', intro:'从空中高速入场，贴海连分。也可自由探索青屿，或挑战五个导航航点。', entries:[['challenge','90 秒挑战 · 低空连分'],['free','自由掠海 · 无限时'],['training','起降挑战 · 五个航点']] },
+};
+let track = 'fighter', lessonEntry = 'takeoff', launchedEntry = '';
+let jet, airliner, fighterCourse, civilOp, scenery;
+const isAcademy = () => mode === 'fighter' || mode === 'civil';
 const $ = id => document.getElementById(id);
 const clamp = THREE.MathUtils.clamp;
 const show = (id, visible = true) => $(id).classList.toggle('hidden', !visible);
@@ -14,7 +27,7 @@ const fmtTime = seconds => `${String(Math.floor((seconds + 1e-6) / 60)).padStart
 const state = createFlight({airborne: true});
 const controls = { pitch: 0, roll: 0, yaw: 0, throttle: state.throttle, brake: false, gear: false, flaps: false, assist: true, boost: false, airbrake: false };
 const keys = new Set();
-let mode = 'challenge', weather = 'clear', playing = false, paused = false, finished = false, started = false;
+let mode = 'fighter', weather = 'clear', playing = false, paused = false, finished = false, started = false;
 let cameraMode = 0, waypoint = 0, hasTakeoffToast = false, ready = false, helpWasPaused = false;
 let toastExpiry = 0, clockTime = 0, lastFrame = 0, uiTime = 0;
 const storedScore = value => {const n=Number(value);return Number.isFinite(n)&&n>=0?n:0;};
@@ -68,7 +81,9 @@ function initialize() {
     renderer.shadowMap.enabled = !touchDevice && innerWidth > 760;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     env = createEnvironment(scene, renderer);
-    aircraft = createAircraft(scene);
+    jet = createAircraft(scene);
+    scenery = createFighterScenery(scene);
+    loadAircraft(lessonEntry);
     cameraEffects = createCameraEffects(renderer);
     frameMetrics = createFrameMetrics($('world'),renderer);
     applyQuality();
@@ -78,7 +93,7 @@ function initialize() {
       const outer = new THREE.Mesh(new THREE.TorusGeometry(169, .45, 4, 80), new THREE.MeshBasicMaterial({color: 0xe0e9e5, transparent: true, opacity: .3}));
       ring.add(torus, outer);
       ring.position.set(p.x, p.y, p.z);
-      const prev = index ? route[index - 1] : {x: 0, y: 20, z: 650};
+      const prev = index ? route[index - 1] : {x: 0, y: 20, z: RUNWAY_START_Z};
       ring.lookAt(prev.x, p.y, prev.z);
       scene.add(ring); rings.push(ring);
     });
@@ -87,7 +102,7 @@ function initialize() {
     updateRingVisibility();
     ready = true;
     $('startBtn').disabled = false;
-    $('startBtn').firstElementChild.textContent = '立即出发';
+    $('startBtn').firstElementChild.textContent = '开始教学';
     $('throttleSlider').value = Math.round(controls.throttle * 100);
     updateSwitches();
     show('loading', false);
@@ -107,12 +122,54 @@ function updateRingVisibility() {
     ring.children[1].visible = i === waypoint;
   });
 }
-function begin() {
+function loadAircraft(entry) {
+  if (mode === 'civil' && !airliner) airliner = createCivilModel(scene);
+  fighterCourse = mode === 'fighter' ? createFighterCourse(entry) : null;
+  civilOp = mode === 'civil' ? createCivilOperation(state, entry) : null;
+  if (fighterCourse) Object.assign(state, fighterSpawn(entry));
+  else if (!civilOp) resetFlight(state, { airborne: mode !== 'training' });
+  aircraft = civilOp ? airliner : jet;
+  jet.root.visible = !civilOp;
+  airliner?.setVisible(!!civilOp);
+  aircraft.setCockpit(false);
+  Object.assign(controls, { pitch:0, roll:0, yaw:0, throttle:state.throttle, brake:false, gear:state.gear, flaps:state.flaps, boost:false, airbrake:false });
+  syncCivilThrottle();
+  aircraft.update(state,clockTime,controls.gear);
+  airliner?.updateGround(civilOp);
+  scenery.update(fighterCourse);
+  $('app').classList.toggle('civil-mode',!!civilOp);
+  $('spaceHint').textContent = civilOp ? '地面刹车' : '空中加力 / 地面刹车';
+  $('throttleSlider').value = Math.round(controls.throttle*100);
+  camera.position.set(state.x + (civilOp?-18:31), state.y + (civilOp?14:8), state.z + (civilOp?-33:29));
+}
+function syncCivilThrottle() {
+  if (civilOp?.syncThrottle != null) {
+    controls.throttle = civilOp.syncThrottle;
+    $('throttleSlider').value = Math.round(controls.throttle*100);
+    civilOp.syncThrottle = null;
+  }
+}
+function selectTrack(next, changeOptions=true) {
+  track = next;
+  const data = tracks[track];
+  if (changeOptions) $('entrySelect').replaceChildren(...data.entries.map(([id,label])=>new Option(label,id)));
+  lessonEntry = $('entrySelect').value;
+  mode = track === 'classic' ? lessonEntry : track;
+  document.querySelectorAll('[data-track]').forEach(button=>{
+    const selected=button.dataset.track===track;
+    button.classList.toggle('selected',selected); button.setAttribute('aria-pressed',String(selected));
+  });
+  $('entryLabel').textContent = track==='classic' ? '飞行模式' : '练习起点';
+  $('briefTitle').replaceChildren(document.createTextNode(data.title),Object.assign(document.createElement('span'),{textContent:'。'}));
+  $('briefIntro').textContent = data.intro;
+  $('startBtn').firstElementChild.textContent = track==='classic' ? '开始飞行' : '开始教学';
+  if (ready) { loadAircraft(lessonEntry); updateSwitches(); renderInstruments(); }
+}
+function begin(entry = lessonEntry) {
   if (!ready) return;
-  resetFlight(state, { airborne: mode !== 'training' });
+  launchedEntry=entry;
+  loadAircraft(entry);
   run = createChallenge(); supersonic = false; lastFrame = performance.now();
-  Object.assign(controls, {pitch: 0, roll: 0, yaw: 0, throttle: state.throttle, brake: false, gear: mode === 'training', flaps: false, boost: false, airbrake: false});
-  state.gear = controls.gear;
   keys.clear(); touch.roll = touch.pitch = 0; touch.up = touch.brake = touch.airbrake = false;
   playing = started = true; paused = finished = false; waypoint = 0; hasTakeoffToast = mode !== 'training'; lowPassScore = lowPassTime = 0; peakSpeed = state.speed;
   cameraMode = 0;
@@ -121,15 +178,17 @@ function begin() {
   $('cameraName').textContent = cameraLabels[0];
   for (const id of ['welcome', 'pauseOverlay', 'resultOverlay', 'helpOverlay', 'audioOverlay']) show(id, false);
   for (const id of ['missionPanel', 'reticle', 'touchControls', 'speedTelemetry']) show(id);
-  $('missionTitle').textContent = {training:'起降挑战',free:'自由掠海',challenge:'90 秒低空挑战'}[mode];
-  show('challengeHud', mode !== 'training');
+  $('missionTitle').textContent = {fighter:'战斗机飞行课',civil:'民航值飞课',training:'起降挑战',free:'自由掠海',challenge:'90 秒低空挑战'}[mode];
+  show('challengeHud', mode === 'free' || mode === 'challenge');
+  show('toast',false); toastExpiry=0;
   $('endFlightBtn').classList.toggle('hidden', mode !== 'free');
   $('pauseBtn').disabled = false;
   $('pauseBtn').innerHTML = '<span>Ⅱ</span> 暂停';
   $('throttleSlider').value = Math.round(controls.throttle * 100);
   updateSwitches(); updateRingVisibility();
   camera.position.set(state.x + 0, state.y + 7, state.z + 32);
-  toast(mode === 'training' ? 'Shift 加大油门，达到 210 km/h 后按 S 抬头。' : '已以 864 km/h 入场 · 按住空格加力，B 空气刹车，C 驾驶舱。', 7000);
+  renderInstruments();
+  if (!isAcademy()) toast(mode === 'training' ? 'Shift 加大油门，达到 210 km/h 后按 S 抬头。' : '已以 864 km/h 入场 · 按住空格加力，B 空气刹车，C 驾驶舱。', 7000);
   updateAudio(); audio.unlock().then(ok=>{if(ok&&playing&&!paused&&!finished)audio.cue('start');});
 }
 function pause(value = !paused) {
@@ -143,11 +202,10 @@ function pause(value = !paused) {
 }
 function home() {
   playing = started = paused = finished = false;
-  resetFlight(state, {airborne:true}); controls.throttle = state.throttle; controls.gear = false; controls.flaps = false; controls.boost = controls.airbrake = false;
-  cameraMode = 0; aircraft.setCockpit(false); keys.clear();
+  cameraMode = 0; loadAircraft(lessonEntry); keys.clear();
   $('app').classList.remove('in-flight', 'cockpit-mode');
-  for (const id of ['missionPanel','resultOverlay','pauseOverlay','touchControls','reticle','ringLabel','warning','speedTelemetry','challengeHud','gateCue','audioOverlay','helpOverlay']) show(id, false);
-  show('welcome'); $('pauseBtn').disabled = true; $('cameraName').textContent = cameraLabels[0];
+  for (const id of ['missionPanel','resultOverlay','pauseOverlay','touchControls','reticle','ringLabel','warning','speedTelemetry','challengeHud','gateCue','audioOverlay','helpOverlay','lessonAction','toast']) show(id, false);
+  show('welcome'); $('pauseBtn').innerHTML='<span>Ⅱ</span> 暂停'; $('pauseBtn').disabled = true; $('cameraName').textContent = cameraLabels[0];
   $('throttleSlider').value = Math.round(controls.throttle*100); resetInputs(); updateSwitches(); updateRingVisibility(); updateAudio();
 }
 function finish(success, reason = 'landing') {
@@ -156,13 +214,22 @@ function finish(success, reason = 'landing') {
   show('pauseOverlay', false); show('warning', false); show('ringLabel', false); show('gateCue', false);
   const completed = mode === 'free' || waypoint === route.length;
   const score = Math.floor(lowPassScore) + (mode !== 'challenge' && reason === 'landing' && success ? Math.max(100, Math.round(1000 - Math.abs(state.landingRate) * 110 + waypoint * 150)) : waypoint * 150);
-  if (score > best) { best = score; try { localStorage.setItem('skybound-best', String(best)); } catch {} }
+  if (!isAcademy() && score > best) { best = score; try { localStorage.setItem('skybound-best', String(best)); } catch {} }
   $('resultEyebrow').textContent = success ? 'WELCOME HOME, PILOT' : 'FLIGHT REPORT';
   $('resultTitle').textContent = success ? (completed ? '漂亮的着陆。' : '已安全返回机场。') : '再试一次，飞行员。';
   $('resultText').textContent = success ? (completed ? '你已完成这段旅程。海风会记得你的航迹。' : '着陆成功！下次试着穿过全部 5 个航点，完成海岸巡航。') : `${state.crashReason || '飞机接触了地面'}。本次极速 ${Math.round(peakSpeed * 3.6)} km/h。低空时提前拉起，进近时按 B 减速。`;
   $('resultStats').innerHTML = `<div><strong>${fmtTime(state.elapsed)}</strong><small>飞行时间</small></div><div><strong>${(state.distance / 1000).toFixed(1)}</strong><small>飞行里程 KM</small></div><div><strong>${score}</strong><small>本次得分 · 最高 ${best}</small></div>`;
   show('resultOverlay'); $('pauseBtn').disabled = true;
-  if (mode === 'challenge') {
+  $('retryBtn').firstChild.textContent = '再飞一次 ';
+  if (isAcademy()) {
+    const full = ['takeoff','departure'].includes(launchedEntry);
+    $('resultEyebrow').textContent = 'FLIGHT ACADEMY';
+    $('resultTitle').textContent = success ? (mode==='civil'?'已完成靠桥。':'平稳着陆。') : '重新练习这一段。';
+    $('resultText').textContent = success ? (full?'本次完整教学已完成。':'本次分段练习已完成。')+(mode==='civil'?'客机已停稳，廊桥已对接。':'飞机已在青屿机场刹停。') : (fighterCourse?.reason || state.crashReason || '本次飞行结束').replace(/[。！]$/,'')+'。可从本阶段重新练习。';
+    $('resultStats').lastElementChild.innerHTML = '<strong>'+Math.round(peakSpeed*3.6)+'</strong><small>最高空速 KM/H</small>';
+    if (!success) $('retryBtn').firstChild.textContent='从本阶段重试 ';
+    show('lessonAction',false);
+  } else if (mode === 'challenge') {
     if (score > challengeBest) { challengeBest = score; try { localStorage.setItem('skybound-challenge-best', String(score)); } catch {} }
     $('resultEyebrow').textContent = reason === 'time' ? 'SORTIE COMPLETE' : 'CHALLENGE REPORT';
     $('resultTitle').textContent = reason === 'time' ? `${challengeRank(score)}。` : success ? '提前返航。' : '下次再挑战。';
@@ -246,10 +313,11 @@ function flightStep(dt) {
   const throttleDirection = (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : 0) - (keys.has('ControlLeft') || keys.has('ControlRight') ? 1 : 0);
   if (throttleDirection) { controls.throttle = clamp(controls.throttle + throttleDirection * dt * .65, 0, 1); $('throttleSlider').value = Math.round(controls.throttle * 100); }
   controls.brake = state.grounded && (keys.has('Space') || touch.brake || keys.has('KeyB'));
-  controls.boost = !state.grounded && (keys.has('Space') || touch.brake);
+  controls.boost = !civilOp && !state.grounded && (keys.has('Space') || touch.brake);
   controls.airbrake = !state.grounded && (keys.has('KeyB') || touch.airbrake);
   previousPosition.set(state.x, state.y, state.z);
-  stepFlight(state, controls, dt);
+  if (civilOp) { stepCivilOperation(civilOp,state,controls,dt); syncCivilThrottle(); }
+  else stepFlight(state, fighterCourse ? fighterLessonInput(fighterCourse,state,controls) : controls, dt);
   // Sweep the travelled segment so a fast jet cannot tunnel through a ridge.
   if (!state.grounded && !state.crashed) {
     const travelled = previousPosition.distanceTo(currentPosition.set(state.x,state.y,state.z));
@@ -262,6 +330,16 @@ function flightStep(dt) {
   }
   const agl=state.y-env.heightAt(state.x,state.z)-2.8;
   peakSpeed=Math.max(peakSpeed,state.speed);
+  if (isAcademy()) {
+    if (fighterCourse) {
+      const event=stepFighterCourse(fighterCourse,previousPosition,state,dt);
+      if (event && !fighterCourse.failed) { toast(event,3000); audio.cue('checkpoint'); }
+      scenery.update(fighterCourse);
+    }
+    if (state.crashed || fighterCourse?.failed) finish(false);
+    else if (fighterCourse?.complete || civilOp?.done) finish(true);
+    return;
+  }
   const previousMultiplier = run.multiplier;
   if (mode !== 'training') { stepChallenge(run,{speed:state.speed,agl,grounded:state.grounded,crashed:state.crashed},dt,mode==='challenge'); lowPassScore=run.score; lowPassTime=run.lowTime; }
   if(run.multiplier>previousMultiplier){audio.cue('checkpoint');toast(`连续低空 ×${run.multiplier} · 保持航线，得分快${run.multiplier}倍`,2200);}
@@ -287,12 +365,17 @@ function flightStep(dt) {
 function updateCamera(dt) {
   forward.set(Math.sin(state.heading),0,-Math.cos(state.heading));
   side.set(Math.cos(state.heading),0,Math.sin(state.heading));
+  const portraitDistance=clamp(1/Math.max(camera.aspect,.35),1,1.65);
   const vibration=playing&&!paused&&!finished ? (state.boosting?.07:.015)+Math.max(0,(state.gForce||1)-2)*.008 : 0;
   if (!started) {
-    chasePosition.set(state.x+32+Math.sin(clockTime*.09)*8,state.y+9,state.z+32);
+    chasePosition.set(state.x+((civilOp?-18:32)+Math.sin(clockTime*.09)*3)*portraitDistance,state.y+(civilOp?14:8)*portraitDistance,state.z+(civilOp?-33:28)*portraitDistance);
     camera.position.lerp(chasePosition,1-Math.exp(-dt*3));
-    aim.set(state.x-4,state.y,state.z-18);
+    aim.set(state.x,state.y+1,state.z);
+    aim.addScaledVector(side,innerWidth>760?-6:0);
     camera.up.set(0,1,0);camera.lookAt(aim);
+  } else if (civilOp && state.grounded && cameraMode===0 && ['gate','disconnect','pushback','taxiOut','taxiIn','stand','connect','docked'].includes(civilOp.phase) && Math.abs(state.x)>65) {
+    camera.position.set(state.x-18*portraitDistance,state.y+10*portraitDistance,state.z-33*portraitDistance);
+    camera.up.set(0,1,0); camera.lookAt(state.x,state.y+1,state.z);
   } else if(cameraMode===1) {
     const pilot=pilotPosition.copy(aircraft.cockpitViewPoint).applyQuaternion(aircraft.root.quaternion);
     camera.position.set(state.x,state.y,state.z).add(pilot);
@@ -300,8 +383,8 @@ function updateCamera(dt) {
     camera.rotateX(-(innerWidth>=1000&&innerHeight>=600?.27:.105)+Math.sin(clockTime*35)*vibration*.012);
     camera.rotateY(Math.sin(clockTime*29)*vibration*.012);
   } else {
-    const distance=cameraMode===2?60:26;
-    const elevation=cameraMode===2?23:7;
+    const distance=(cameraMode===2?(civilOp?95:60):(civilOp?49:26))*portraitDistance;
+    const elevation=(cameraMode===2?(civilOp?32:23):(civilOp?13:7))*portraitDistance;
     chasePosition.set(state.x,state.y+elevation,state.z).addScaledVector(forward,-distance);
     if(cameraMode===2)chasePosition.addScaledVector(side,32);
     camera.position.copy(chasePosition);
@@ -313,7 +396,48 @@ function updateCamera(dt) {
   const desired=!started?57:cameraMode===1?80+(state.boosting?8:0):cameraMode===2?65:68+clamp((state.speed-60)/22,0,14)+(state.boosting?9:0);
   renderFov=THREE.MathUtils.damp(renderFov,desired,3.5,dt);camera.fov=renderFov;camera.updateProjectionMatrix();
 }
+function updateLessonHud() {
+  const lesson = fighterCourse ? fighterGuidance(fighterCourse,state) : civilBrief(civilOp,state);
+  const step = fighterCourse ? lesson.stage : lesson.step;
+  const total = fighterCourse ? 3 : lesson.total;
+  $('flightTimer').textContent = fmtTime(state.elapsed);
+  const runway = civilOp && ['return','approach','rollout'].includes(civilOp.phase) ? '18' : '36';
+  $('fieldLabel').textContent = civilOp && state.grounded && Math.abs(state.x)>65 ? '青屿机场 · C2 机坪' : '青屿机场 · RWY '+runway;
+  $('missionCount').textContent = step+' / '+total+' · '+(fighterCourse ? lesson.phase : ['离港','滑出','起飞','返航','滑入','靠桥'][step-1]);
+  $('objectiveIcon').textContent = String(step).padStart(2,'0');
+  $('missionProgress').style.width = (clamp(lesson.progress,0,1)*100)+'%';
+  $('objectiveTitle').textContent = lesson.title;
+  $('objectiveHint').textContent = lesson.hint;
+  $('flightPhase').textContent = state.grounded ? '地面' : state.verticalSpeed>1?'爬升':state.verticalSpeed < -1?'下降':'平飞';
+  const target = lesson.target;
+  let nav = '';
+  if (target) {
+    const dx = target.x-state.x, dz=target.z-state.z, dist=Math.hypot(dx,dz);
+    const bearing=(Math.atan2(dx,-dz)*180/Math.PI+360)%360;
+    const delta=(bearing-state.heading*180/Math.PI+540)%360-180;
+    if(dist>4) nav=(Math.abs(delta)<7?'正前方':delta>0?'向右':'向左')+' · '+String(Math.round(bearing)%360).padStart(3,'0')+'° · '+(dist<800?Math.round(dist)+' m':(dist/1000).toFixed(1)+' km');
+    const v=routeCenter.set(target.x,target.y??state.y,target.z).project(camera);
+    const visible=dist>90 && v.z>-1 && v.z<1 && Math.abs(v.x)<.79 && Math.abs(v.y)<.62 && !paused && !finished;
+    if (visible) {
+      $('ringLabel').style.left=((v.x+1)*innerWidth*.5)+'px';
+      $('ringLabel').style.top=((1-v.y)*innerHeight*.5-33)+'px';
+      $('ringLabel').firstElementChild.textContent='◇';
+      $('ringLabel').lastElementChild.textContent=target.name || '航线引导';
+    }
+    show('ringLabel',visible);
+  } else show('ringLabel',false);
+  $('nextDistance').textContent=nav || (civilOp?'青屿机场 · 地勤':'青屿机场 · RWY 36');
+  $('academyNav').textContent = nav;
+  show('academyNav',!!nav);
+  show('gateCue',false);
+  show('lessonAction',!!lesson.action && !paused && !finished);
+  if (lesson.action) $('lessonAction').textContent=lesson.action;
+  show('warning',!!state.stall && !state.grounded && !finished && !paused);
+  if (state.stall) $('warning').textContent='失速 · 增加油门，减小仰角';
+}
 function updateMission() {
+  if (isAcademy()) { updateLessonHud(); return; }
+  show('lessonAction', false); show('academyNav',false); $('fieldLabel').textContent='青屿机场 · RWY 36';
   const p = route[Math.min(waypoint, route.length - 1)];
   $('flightTimer').textContent = fmtTime(state.elapsed);
   $('missionCount').textContent = mode === 'training' ? `${String(waypoint).padStart(2,'0')} / 05` : `${Math.floor(lowPassScore).toLocaleString()} 分`;
@@ -373,10 +497,11 @@ function renderInstruments() {
   $('machValue').textContent=`M ${(state.mach||state.speed/343).toFixed(2)}`;
   $('gValue').textContent=`${(state.gForce||1).toFixed(1)} G`;
   $('boostBar').style.width=`${state.boostEnergy??100}%`;
-  $('boostLabel').textContent=state.boosting?'加力燃烧':state.boostLocked?'松开加力键重置':(state.boostEnergy??100)<15?'加力冷却':'空格 · 加力';
+  $('boostLabel').textContent=state.grounded?'空格 · 刹车':state.boosting?'加力燃烧':state.boostLocked?'松开加力键重置':(state.boostEnergy??100)<15?'加力冷却':'空格 · 加力';
   $('boostGauge').classList.toggle('boosting',!!state.boosting);
   $('app').classList.toggle('afterburner',!!state.boosting&&playing&&!paused&&!finished);
   $('touchBrake').textContent=state.grounded?'刹车':'加力';
+  $('touchBrake').classList.toggle('airborne',!state.grounded);
   $('speedValue').classList.toggle('supersonic',state.speed>=343);
   drawAttitude(); drawMap(); if(started) updateMission();
 }
@@ -397,15 +522,22 @@ function drawAttitude() {
 }
 function drawMap() {
   if(!env)return;
-  const c=mapCtx,w=380,h=260,scale=.020,cx=w/2,cy=h*.5;
-  const map=(x,z)=>[cx+(x-state.x*.7)*scale,cy+(z-state.z*.7)*scale];
+  const c=mapCtx,w=380,h=260,scale=civilOp && state.grounded ? .09 : .020,cx=w/2,cy=h*.5;
+  $('mapScale').textContent=scale===.09?'近场':'航路';
+  const map=(x,z)=>[cx+(x-state.x)*scale,cy+(z-state.z)*scale];
   c.clearRect(0,0,w,h);c.strokeStyle='#8da8a915';c.lineWidth=1;
   for(let i=0;i<w;i+=38){c.beginPath();c.moveTo(i,0);c.lineTo(i,h);c.stroke();}for(let i=0;i<h;i+=38){c.beginPath();c.moveTo(0,i);c.lineTo(w,i);c.stroke();}
   env.islands.forEach(is=>{const p=map(is.x,is.z);c.fillStyle=is.main?'#44675f':'#355650';c.strokeStyle='#6d9d8260';c.beginPath();c.ellipse(p[0],p[1],is.rx*scale,is.rz*scale,0,0,Math.PI*2);c.fill();c.stroke();});
-  const a=map(0,-900),b=map(0,900);c.strokeStyle='#c0d4cd';c.lineWidth=2;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();
+  const a=map(0,-RUNWAY_HALF_LENGTH),b=map(0,RUNWAY_HALF_LENGTH);c.strokeStyle='#c0d4cd';c.lineWidth=2;c.beginPath();c.moveTo(...a);c.lineTo(...b);c.stroke();
   if(mode==='training'){
-    c.setLineDash([5,6]);c.strokeStyle='#e5b67c65';c.lineWidth=1.5;c.beginPath();c.moveTo(...map(0,650));route.forEach(p=>c.lineTo(...map(p.x,p.z)));c.lineTo(...map(0,700));c.stroke();c.setLineDash([]);
+    c.setLineDash([5,6]);c.strokeStyle='#e5b67c65';c.lineWidth=1.5;c.beginPath();c.moveTo(...map(0,RUNWAY_START_Z));route.forEach(p=>c.lineTo(...map(p.x,p.z)));c.lineTo(...map(0,RUNWAY_START_Z));c.stroke();c.setLineDash([]);
     route.forEach((p,i)=>{const v=map(p.x,p.z);c.beginPath();c.arc(...v,i===waypoint?6:3,0,Math.PI*2);c.fillStyle=i<waypoint?'#9ed4b4':i===waypoint?'#f4b781':'#a18f75';c.fill();});
+  }
+  const target=fighterCourse ? fighterGuidance(fighterCourse,state).target : civilOp ? civilBrief(civilOp,state).target : null;
+  if (target) {
+    const goal=map(target.x,target.z);
+    c.strokeStyle='#9cdccc';c.setLineDash([6,5]);c.beginPath();c.moveTo(cx,cy);c.lineTo(...goal);c.stroke();c.setLineDash([]);
+    c.beginPath();c.arc(...goal,5,0,Math.PI*2);c.stroke();
   }
   let p=map(state.x,state.z);p=[clamp(p[0],10,w-10),clamp(p[1],10,h-10)];
   c.save();c.translate(...p);c.rotate(state.heading);c.fillStyle='#ffd29c';c.shadowColor='#ffbd80';c.shadowBlur=8;c.beginPath();c.moveTo(0,-10);c.lineTo(6,7);c.lineTo(0,3);c.lineTo(-6,7);c.closePath();c.fill();c.restore();
@@ -420,6 +552,7 @@ function frame(now) {
   const cpuStart=frameMetrics?.begin();
   env.update(clockTime, weather, camera);
   aircraft.update(state,clockTime,controls.gear);
+  if (civilOp) airliner.updateGround(civilOp);
   if(!paused)updateCamera(dt);
   cameraEffects.render(scene,camera,state,clockTime,playing&&!paused&&!finished);
   if(now-uiTime>80){renderInstruments();updateAudio();uiTime=now;}
@@ -427,10 +560,20 @@ function frame(now) {
   frameMetrics?.end(now,cpuStart,`${playing&&!paused&&!finished?'flight':'menu'}/${quality}/${qualityReduced?'reduced':'full'}/${cameraMode}/${weather}`);
 }
 
-$('startBtn').addEventListener('click',begin);
-$('retryBtn').addEventListener('click',begin);
-$('restartBtn').addEventListener('click',begin);
-$('pauseRestart').addEventListener('click',begin);
+$('startBtn').addEventListener('click',()=>begin());
+$('retryBtn').addEventListener('click',()=>{
+  let entry=lessonEntry;
+  if (fighterCourse?.failed || (fighterCourse && state.crashed)) entry=fighterCourse.checkpoint;
+  else if (civilOp && state.crashed && state.hasFlown) entry='approach';
+  begin(entry);
+});
+$('lessonAction').addEventListener('click',()=>{
+  if (!civilOp || !playing || finished || paused) return;
+  civilAction(civilOp,state);syncCivilThrottle();updateMission();airliner.updateGround(civilOp);
+  if(civilOp.done)finish(true);
+});
+$('restartBtn').addEventListener('click',()=>begin());
+$('pauseRestart').addEventListener('click',()=>begin());
 $('homeBtn').addEventListener('click',home);
 $('pauseHome').addEventListener('click',home);
 $('pauseBtn').addEventListener('click',()=>pause());
@@ -457,7 +600,8 @@ window.addEventListener('pointerup',unlockFromGesture);window.addEventListener('
 
 $('fullscreenBtn').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('app').requestFullscreen();}catch{toast('当前窗口无法全屏，可在浏览器中打开游戏。');}});
 document.querySelector('.brand').addEventListener('click',e=>{e.preventDefault();if(!playing)home();else openHelp();});
-document.querySelectorAll('[data-mode]').forEach(btn=>btn.addEventListener('click',()=>{mode=btn.dataset.mode;document.querySelectorAll('[data-mode]').forEach(b=>{b.classList.toggle('selected',b===btn);b.setAttribute('aria-pressed',String(b===btn));});drawMap();}));
+document.querySelectorAll('[data-track]').forEach(btn=>btn.addEventListener('click',()=>selectTrack(btn.dataset.track)));
+$('entrySelect').addEventListener('change',()=>selectTrack(track,false));
 document.querySelectorAll('[data-weather]').forEach(btn=>btn.addEventListener('click',()=>{weather=btn.dataset.weather;env?.setWeather(weather);document.querySelectorAll('[data-weather]').forEach(b=>{b.classList.toggle('selected',b===btn);b.setAttribute('aria-pressed',String(b===btn));});$('weatherLabel').textContent={clear:'晴空 · 微风',sunset:'日落 · 微风',cloudy:'多云 · 微风'}[weather];}));
 const flightKeys=new Set(['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','ControlLeft','ControlRight','Space','KeyB','KeyG','KeyF','KeyC','KeyP','Escape']);
 window.addEventListener('keydown',e=>{
@@ -484,5 +628,5 @@ $('joystick').addEventListener('pointerdown',e=>{if(pointerId!==null)return; e.p
 $('joystick').addEventListener('pointermove',e=>{if(e.pointerId===pointerId)moveStick(e);});
 for(const evt of ['pointerup','pointercancel','lostpointercapture'])$('joystick').addEventListener(evt,()=>{pointerId=null;touch.roll=touch.pitch=0;$('joystickKnob').style.transform='';});
 for(const [id,field] of [['touchUp','up'],['touchBrake','brake'],['touchAirbrake','airbrake']]){const btn=$(id);btn.addEventListener('pointerdown',e=>{e.preventDefault();btn.setPointerCapture(e.pointerId);touch[field]=true;});for(const evt of ['pointerup','pointercancel','lostpointercapture'])btn.addEventListener(evt,()=>{touch[field]=false;});}
-syncAudioControls(); updateAudio(); audio.unlock();
+selectTrack(track); syncAudioControls(); updateAudio(); audio.unlock();
 initialize();

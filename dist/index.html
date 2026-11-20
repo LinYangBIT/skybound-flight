@@ -2,9 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#122c38">
-<title>SKYBOUND · 云端飞行</title><meta name="description" content="驾驶 JX-9 喷气机，以 864 km/h 掠过真实感海岸；开启加力突破音速，体验低空高速飞行。">
+<title>SKYBOUND · 云端飞行</title><meta name="description" content="从青屿机场起飞，穿过楼群、山口与云层，再平稳着陆。也可驾驶民航客机，从廊桥出发并停靠。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23162e3a'/%3E%3Cpath d='M32 8L37 28L56 41V47L36 40V52L43 57H21L28 52V40L8 47V41L27 28Z' fill='%23efb57b'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="./style.css?v=4">
+<link rel="stylesheet" href="./style.css?v=5">
 </head>
 <body>
 <main id="app">
@@ -23,21 +23,24 @@
 </header>
 <div id="headingBar" class="heading-bar"><div class="compass-track"><span>330</span><span>345</span><strong id="headingTop">N</strong><span>015</span><span>030</span></div><div class="heading-arrow"></div><small>HEADING</small></div>
 <section class="welcome glass" id="welcome">
-<div class="eyebrow"><span class="line"></span> JX-9 / LOW ALTITUDE. HIGH SPEED.</div>
-<h1>低空掠海<br>全速突破<span>。</span></h1>
-<p class="intro">864 km/h 空中入场。<br>低空连分，90 秒冲击王牌纪录。</p>
-<div class="mode-switch" role="group" aria-label="飞行模式"><button class="selected" data-mode="challenge">90 秒挑战<small>低空连分 · 最高 ×4</small></button><button data-mode="free">自由掠海<small>无限时 · 随时结算</small></button><button data-mode="training">起降挑战<small>跑道起飞 · 5 个航点</small></button></div>
+<div class="eyebrow"><span class="line"></span> QINGYU FLIGHT ACADEMY</div>
+<h1 id="briefTitle">战斗机飞行课<span>。</span></h1>
+<p class="intro" id="briefIntro">从 3.6 公里跑道起飞，穿过楼群和山口，爬升穿云后返场着陆。</p>
+<div class="mode-switch" role="group" aria-label="选择机型或模式"><button class="selected" data-track="fighter" aria-pressed="true">战斗机<small>JX-9</small></button><button data-track="civil" aria-pressed="false">民航客机<small>QY-28</small></button><button data-track="classic" aria-pressed="false">自由与挑战<small>低空飞行</small></button></div>
+<label class="lesson-select" for="entrySelect"><span id="entryLabel">练习起点</span><select id="entrySelect"></select></label>
 <div class="weather-row"><span>天空</span><div class="weather-switch" role="group" aria-label="天气"><button class="selected" data-weather="clear" title="晴空">☀ <span>晴空</span></button><button data-weather="sunset" title="日落">◒ <span>日落</span></button><button data-weather="cloudy" title="多云">☁ <span>多云</span></button></div></div>
 <button class="primary-btn" id="startBtn" disabled><span>准备场景中</span><span>↗</span></button>
-<div class="welcome-foot"><span class="live-dot"></span> JX-9 双发喷气机 <span>·</span> 辅助驾驶已开启</div>
+<div class="welcome-foot"><span class="live-dot"></span> 青屿机场 <span>·</span> RWY 36 / 18 <span>·</span> 3,600 M</div>
 </section>
 <section id="missionPanel" class="mission-panel glass hidden">
 <div class="panel-caption">FLIGHT PLAN <span id="flightTimer">00:00</span></div>
 <h2 id="missionTitle">海岸巡航</h2>
-<div class="mission-meta"><span>青屿机场 · RWY 36</span><span id="missionCount">00 / 05</span></div>
+<div class="mission-meta"><span id="fieldLabel">青屿机场 · RWY 36</span><span id="missionCount">00 / 05</span></div>
 <div class="progress-track"><div id="missionProgress"></div></div>
 <div class="objective"><span id="objectiveIcon">01</span><div><strong id="objectiveTitle">准备起飞</strong><p id="objectiveHint">加大油门，210 km/h 后抬头</p></div></div>
 <div class="mission-bottom"><span id="nextDistance">航点距离 —</span><span id="flightPhase">地面滑行</span></div>
+<div id="academyNav" class="academy-nav hidden"></div>
+<button id="lessonAction" class="lesson-action hidden"></button>
 <button id="restartBtn" class="subtle-btn">↻ 重新飞行</button>
 </section>
 <div class="scene-caption" id="sceneCaption"><span class="small-line"></span><div>QINGYU ARCHIPELAGO<small>24° 32′ N &nbsp; 118° 06′ E &nbsp; / &nbsp; 虚拟空域</small></div></div>
@@ -51,7 +54,7 @@
 <aside class="right-tools">
 <button id="cameraBtn" class="tool-chip"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="m8 7 2-3h4l2 3"/><circle cx="12" cy="13" r="3"/></svg><span id="cameraName">追尾视角</span><kbd>C</kbd></button>
 <button id="assistBtn" class="tool-chip active"><span class="tool-symbol">⊕</span><span>飞行辅助</span><span id="assistState" class="on-badge">ON</span></button>
-<div class="control-hint desktop-only"><div><span><kbd>W</kbd><kbd>S</kbd></span><span>压低 / 抬头</span></div><div><span><kbd>A</kbd><kbd>D</kbd></span><span>左右转弯</span></div><div><span><kbd>⇧</kbd><kbd>Ctrl</kbd></span><span>油门加 / 减</span></div><div><span><kbd>B</kbd></span><span>空气刹车</span></div><div><span><kbd>G</kbd></span><span>起落架</span></div><div><span><kbd>空格</kbd></span><span>空中加力 / 地面刹车</span></div></div>
+<div class="control-hint desktop-only"><div><span><kbd>W</kbd><kbd>S</kbd></span><span>压低 / 抬头</span></div><div><span><kbd>A</kbd><kbd>D</kbd></span><span>左右转弯</span></div><div><span><kbd>⇧</kbd><kbd>Ctrl</kbd></span><span>油门加 / 减</span></div><div><span><kbd>B</kbd></span><span>空气刹车</span></div><div><span><kbd>G</kbd></span><span>起落架</span></div><div><span><kbd>空格</kbd></span><span id="spaceHint">空中加力 / 地面刹车</span></div></div>
 </aside>
 <section class="instrument-dock glass" aria-label="飞行仪表">
 <div class="instrument speed-instrument"><div class="instrument-label">AIRSPEED <span>空速</span></div><div class="instrument-value"><strong id="speedValue">0</strong><span>KM/H</span></div><div class="speed-bar"><i id="speedBar"></i><b></b></div></div>
@@ -61,14 +64,14 @@
 <div class="instrument vs-instrument"><div class="instrument-label">VERTICAL <span>升降率</span></div><div class="instrument-value"><strong id="vsValue">0</strong><span>FT/M</span></div><div class="instrument-sub" id="vsLabel">水平</div></div>
 <div class="throttle-instrument"><div class="instrument-label">THROTTLE <span id="throttleValue">0%</span></div><input id="throttleSlider" type="range" min="0" max="100" value="0" aria-label="油门百分比"><div class="flight-switches"><button id="gearBtn" class="selected" title="起落架 G"><span class="state-dot"></span>起落架</button><button id="flapsBtn" title="襟翼 F"><span class="state-dot"></span>襟翼</button></div></div>
 </section>
-<div class="map-card glass"><div class="map-caption"><span>导航地图</span><span>↗ N</span></div><canvas id="map" width="380" height="260" aria-label="飞行导航地图"></canvas><div class="map-footer"><span><i></i> 你的飞机</span><span>5 km</span></div></div>
-<div class="bottom-meta"><span>JX-9 FLIGHT SIMULATOR <i>04</i></span><span id="bottomStatus">准备就绪 · 享受飞行</span><span class="desktop-only">耳机体验更佳 ↗</span></div>
+<div class="map-card glass"><div class="map-caption"><span>导航地图</span><span>↗ N</span></div><canvas id="map" width="380" height="260" aria-label="飞行导航地图"></canvas><div class="map-footer"><span><i></i> 你的飞机</span><span id="mapScale">5 km</span></div></div>
+<div class="bottom-meta"><span>SKYBOUND FLIGHT SIMULATOR <i>05</i></span><span id="bottomStatus">准备就绪 · 享受飞行</span><span class="desktop-only">耳机体验更佳 ↗</span></div>
 <div id="touchControls" class="touch-controls hidden"><div id="joystick" aria-label="拖动摇杆控制飞机"><span id="joystickKnob"></span><i>俯仰 / 转弯</i></div><div class="touch-actions"><button id="touchBrake">加力</button><button id="touchAirbrake">减速</button><button id="touchUp">抬头 ↑</button></div></div>
 <div id="pauseOverlay" class="modal-backdrop hidden"><section class="modal glass"><div class="eyebrow">TAKE A BREATH</div><h2>天空，等你回来。</h2><p>飞行已暂停。准备好后，继续你的旅程。</p><button id="resumeBtn" class="primary-btn">继续飞行 <span>↗</span></button><button id="pauseRestart" class="secondary-btn">重新开始</button><button id="endFlightBtn" class="secondary-btn hidden">结束本次飞行并记录得分</button><button id="pauseHome" class="secondary-btn">返回机库</button></section></div>
 <div id="resultOverlay" class="modal-backdrop hidden"><section class="modal glass"><div class="eyebrow" id="resultEyebrow">FLIGHT REPORT</div><h2 id="resultTitle">旅程暂告一段落</h2><p id="resultText"></p><div id="resultStats" class="result-stats"></div><button id="retryBtn" class="primary-btn">再飞一次 <span>↗</span></button><button id="homeBtn" class="secondary-btn">返回机库</button></section></div>
-<div id="helpOverlay" class="modal-backdrop hidden"><section class="modal help-modal glass"><button id="closeHelp" class="close-btn" aria-label="关闭指南">×</button><div class="eyebrow">PILOT'S HANDBOOK</div><h2>JX-9 飞行速查</h2><p>默认 90 秒挑战，以 864 km/h 从空中开始；也可选择无限时自由掠海和起降挑战。</p><div class="help-steps"><article><b>01</b><div><h3>加力 · 极速</h3><p>Shift / Ctrl 加减油门。空中按住空格开启加力，短时突破音速；松开后加力能量恢复。起降模式达到 210 km/h 后按 S / ↓ 抬头。</p></div></article><article><b>02</b><div><h3>转弯 · 巡航</h3><p>A / D 或 ← / → 转弯，S / ↓ 抬头、W / ↑ 压低。B 开启空气刹车。以超过 650 km/h 的速度保持离地 15–150 米，可获得低空挑战积分；连续保持每 6 秒增加倍率，最高 ×4。离开积分区超过 1.5 秒倍率重置。</p></div></article><article><b>03</b><div><h3>对准 · 着陆</h3><p>起降模式穿过 5 个航点后返航。收油并按 B 减速，G 放下起落架、F 开襟翼。保持 220–300 km/h 对准跑道缓慢下降，接地后按空格刹车。</p></div></article></div><div class="help-extra"><span><kbd>C</kbd> 切换视角</span><span><kbd>P</kbd> 暂停飞行</span><span><kbd>F</kbd> 襟翼</span></div><p class="help-mobile">手机操作：左侧摇杆向下抬头、向上压低，左右转弯；拖动底部油门滑块控制速度；长按「加力」加速，长按「减速」开空气刹车。</p><button id="helpDone" class="primary-btn">明白了，准备起飞 <span>↗</span></button></section></div>
+<div id="helpOverlay" class="modal-backdrop hidden"><section class="modal help-modal glass"><button id="closeHelp" class="close-btn" aria-label="关闭指南">×</button><div class="eyebrow">PILOT'S HANDBOOK</div><h2>飞行员速查</h2><p>机库可选择完整教学，或从空中、最后进近和停机位练习开始。</p><div class="help-steps"><article><b>01</b><div><h3>推出与起飞</h3><p>民航先用地勤按钮收桥、推出，沿引导线滑行。战斗机从跑道开始。Shift 增加油门，看教员提示的空速，按 S 或 ↓ 轻轻抬头。离地后可按 G 收起落架。</p></div></article><article><b>02</b><div><h3>转弯与穿云</h3><p>A / D 向左、向右滚转，S 抬头，W 压低机头。按任务面板的目标航向和高度穿越航点。战斗机在空中可按住空格短时加力。</p></div></article><article><b>03</b><div><h3>进近与停靠</h3><p>Ctrl 收油，B 减速，G 放下起落架，F 放襟翼。对准跑道，接近地面时逐渐拉平，接地后按住空格刹车。民航随后沿滑行线进入机位，停稳并对接廊桥。</p></div></article></div><div class="help-extra"><span><kbd>C</kbd> 切换视角</span><span><kbd>P</kbd> 暂停飞行</span><span><kbd>F</kbd> 襟翼</span></div><p class="help-mobile">手机操作：左侧摇杆向下抬头、向上压低，左右转弯；拖动底部油门滑块控制速度；按任务面板上的地勤按钮操作廊桥和牵引车。</p><button id="helpDone" class="primary-btn">明白了，准备起飞 <span>↗</span></button></section></div>
 <div id="audioOverlay" class="modal-backdrop hidden"><section class="modal audio-modal glass" role="dialog" aria-modal="true" aria-labelledby="audioTitle"><div class="eyebrow">FLIGHT PREFERENCES</div><h2 id="audioTitle">声音与画质</h2><p>原创配乐会随加力和低空连分变化。设置保存在当前浏览器。</p><div class="audio-row"><label for="musicToggle">背景配乐</label><input id="musicToggle" type="checkbox" checked></div><div class="audio-volume"><label for="musicVolume">音乐音量</label><input id="musicVolume" type="range" min="0" max="100" value="42"></div><div class="audio-row"><label for="sfxToggle">引擎与提示音</label><input id="sfxToggle" type="checkbox" checked></div><div class="audio-volume"><label for="sfxVolume">音效音量</label><input id="sfxVolume" type="range" min="0" max="100" value="70"></div><div class="audio-row"><label for="touchToggle">显示触屏操控</label><input id="touchToggle" type="checkbox"></div><label for="qualitySelect">画面质量</label><select id="qualitySelect"><option value="auto">自动适配</option><option value="high">精细画面</option><option value="low">流畅优先</option></select><p id="qualityStatus">自动适配</p><p id="audioStatus" aria-live="polite">操作游戏后自动播放</p><button id="closeAudio" class="primary-btn">完成设置 <span>↗</span></button></section></div>
-<div id="loading" class="loading"><span class="loader"></span><span id="loadingText">正在准备真实感海岸与 JX-9</span></div>
+<div id="loading" class="loading"><span class="loader"></span><span id="loadingText">正在准备机场、航线与飞机</span></div>
 </main>
-<script type="module" src="./app.js?v=4"></script>
+<script type="module" src="./app.js?v=5"></script>
 </body></html>

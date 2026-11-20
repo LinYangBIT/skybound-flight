@@ -45,7 +45,7 @@ test('overlapping islands use the upper visible face and ocean remains at sea le
 function environmentGeometry() {
   const previousDocument = globalThis.document;
   const context = {
-    fillRect() {}, fillText() {}, save() {}, translate() {}, rotate() {}, restore() {},
+    fillRect() {}, fillText() {}, save() {}, scale() {}, translate() {}, rotate() {}, restore() {},
     beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
     createLinearGradient: () => ({ addColorStop() {} }),
     createRadialGradient: () => ({ addColorStop() {} }),
@@ -56,13 +56,13 @@ function environmentGeometry() {
     const environment = createEnvironment(scene);
     scene.updateMatrixWorld(true);
     const meshes = scene.children.filter(mesh => mesh.isMesh && mesh.material.customProgramCacheKey() === 'skybound-real-terrain-v2');
-    return { environment, meshes };
+    return { environment, meshes, pavement: scene.getObjectByName('runway-pavement') };
   } finally {
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;
   }
 }
-const { environment, meshes } = environmentGeometry();
+const { environment, meshes, pavement } = environmentGeometry();
 const raycaster = new THREE.Raycaster();
 function visibleHeight(x, z) {
   raycaster.set(new THREE.Vector3(x, 20000, z), new THREE.Vector3(0, -1, 0));
@@ -84,8 +84,17 @@ test('real island queries match raycast mesh faces, including the former 310 met
 });
 
 test('runway ground stays level through both approaches and the full landing strip', () => {
-  for (const x of [-45, 0, 45]) for (const z of [-1000, -900, -500, 0, 500, 900, 1000]) {
+  for (const x of [-45, 0, 45]) for (const z of [-1950, -1800, -1770, -1500, -900, 0, 900, 1500, 1770, 1800, 1950]) {
     assert.equal(environment.heightAt(x, z), 9);
     assert.ok(Math.abs(visibleHeight(x, z) - 9) < 1e-6);
   }
+});
+
+test('visible pavement spans the same three thousand six hundred metres as touchdown physics', () => {
+  const bounds = new THREE.Box3().setFromObject(pavement);
+  assert.equal(bounds.min.x, -45);
+  assert.equal(bounds.max.x, 45);
+  assert.equal(bounds.min.z, -1800);
+  assert.equal(bounds.max.z, 1800);
+  assert.ok(Math.abs(bounds.max.y - 9.11) < .00001);
 });

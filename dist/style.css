@@ -266,3 +266,14 @@ html,body{background:#20282e}.topbar{background:linear-gradient(180deg,#111a25a8
   .cockpit-mode .map-card,.cockpit-mode .control-hint{display:none}
   .cockpit-mode .mission-panel{width:224px;padding:18px}
 }
+
+.lesson-select { display:flex; align-items:center; gap:14px; margin:15px 0 0; color:#bdcdce; font-size:12px; }
+.lesson-select select { flex:1; min-width:0; height:36px; padding:0 9px; border:1px solid #99b9c245; border-radius:5px; background:#1b343d; color:#f0f4ef; font:inherit; }
+.welcome #briefTitle { font-size:clamp(29px,3.5vw,48px); line-height:1.16; }
+.welcome #briefIntro { max-width:29em; line-height:1.8; }
+.lesson-action { width:100%; margin-top:12px; min-height:38px; padding:7px; border:1px solid #edbe81; border-radius:5px; background:#f2c292; color:#202e32; font-size:12px; font-weight:600; cursor:pointer; }
+.civil-mode #boostGauge,.civil-mode #touchBrake.airborne { display:none; }
+@media(max-height:570px) { .welcome .lesson-select { margin-top:8px; } .welcome #briefTitle { font-size:27px; } .lesson-action { margin-top:6px; min-height:33px; } }
+
+.academy-nav { display:none; }
+@media(max-height:570px),(max-width:760px) { .academy-nav:not(.hidden) { display:block; margin-top:6px; font:10px/1.4 monospace; color:#abdccd; } .mission-panel:has(.academy-nav:not(.hidden)) .mission-bottom { display:none; } }

@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.js';
 import { createTerrainSurface, sampleTerrainHeight } from './terrain-sampling.js?v=4';
+import { RUNWAY_HALF_LENGTH, RUNWAY_HALF_WIDTH, RUNWAY_ELEVATION } from './airfield.js?v=5';
 import { atmosphereGLSL } from './atmosphere.js?v=4';
 import { createAirport } from './airport.js?v=4';
 import { createCoastalVegetation } from './coastal-vegetation.js?v=4';
@@ -35,7 +36,7 @@ export function createEnvironment(scene, renderer) {
   let seed = 103027;
   const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   const islands = [
-    { x: 0, z: 0, rx: 900, rz: 1850, height: 230, main: true, phase: .3 },
+    { x: 0, z: 0, rx: 900, rz: RUNWAY_HALF_LENGTH + 900, height: 230, main: true, phase: .3 },
     { x: -2450, z: -2800, rx: 1180, rz: 1050, height: 615, phase: 1.7 },
     { x: 2800, z: -3600, rx: 1200, rz: 1600, height: 740, phase: 3.1 },
     { x: -2950, z: 1700, rx: 750, rz: 980, height: 340, phase: 5.5 },
@@ -67,11 +68,11 @@ export function createEnvironment(scene, renderer) {
       // Low, flat approach corridor; the side ridges have broken rocky spurs.
       const side = smooth((Math.abs(x) - 120) / 220);
       const spur = Math.pow(Math.max(0, 1 - r), .65) * (.3 + large * .6 + ridge * .34);
-      h = 9 * edge + (island.height * spur + detail * 18) * side * edge;
-      if (Math.abs(x) <= 110) h = Math.min(9, h);
-      if (Math.abs(x) < 105 && Math.abs(z) < 1050) h = 9;
+      h = RUNWAY_ELEVATION * edge + (island.height * spur + detail * 18) * side * edge;
+      if (Math.abs(x) <= 110) h = Math.min(RUNWAY_ELEVATION, h);
+      if (Math.abs(x) < 105 && Math.abs(z) <= RUNWAY_HALF_LENGTH + 200) h = RUNWAY_ELEVATION;
       const airportBlend = smooth((x - 55) / 40) * (1 - smooth((x - 325) / 220)) * smooth((z - 35) / 80) * (1 - smooth((z - 820) / 280));
-      h = h * (1 - airportBlend) + 9 * airportBlend;
+      h = h * (1 - airportBlend) + RUNWAY_ELEVATION * airportBlend;
     } else {
       const mass = Math.pow(Math.max(0, 1 - r * r), 1.35);
       h = 8 * edge + island.height * mass * (.30 + .58 * large + .38 * ridge) + detail * 45 * mass;
@@ -221,7 +222,7 @@ export function createEnvironment(scene, renderer) {
     }`,
   });
   for(const island of islands){
-    const nx=island.main?120:island.distant?60:94,nz=island.main?224:island.distant?66:104;
+    const nx=island.main?120:island.distant?60:94,nz=island.main?280:island.distant?66:104;
     const positions=new Float32Array((nx+1)*(nz+1)*3),uvs=new Float32Array((nx+1)*(nz+1)*2),indices=[];
     const width=island.rx*2.5,depth=island.rz*2.5;
     for(let iz=0;iz<=nz;iz++)for(let ix=0;ix<=nx;ix++){
@@ -270,30 +271,52 @@ export function createEnvironment(scene, renderer) {
   const ctx = runwayCanvas.getContext('2d');
   ctx.fillStyle = '#343839'; ctx.fillRect(0, 0, 512, 4096);
   for (let i = 0; i < 24000; i++) { ctx.fillStyle = `rgba(190,205,210,${random() * 0.035})`; ctx.fillRect(random() * 512, random() * 4096, 1, 1); }
-  ctx.fillStyle = '#c9cac3'; ctx.fillRect(22, 25, 5, 4046); ctx.fillRect(485, 25, 5, 4046);
-  for (let y = 270; y < 3850; y += 170) ctx.fillRect(250, y, 12, 82);
-  for (const y of [40, 3956]) for (let i = 0; i < 10; i++) ctx.fillRect(55 + i * 41, y, 25, 100);
-  for (const y of [670, 3230]) { ctx.fillRect(85, y, 54, 180); ctx.fillRect(373, y, 54, 180); }
-  ctx.font = 'bold 136px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('36', 256, 3760); ctx.save(); ctx.translate(256, 325); ctx.rotate(Math.PI); ctx.fillText('18', 0, 0); ctx.restore();
+  const length = 2 * RUNWAY_HALF_LENGTH, width = 2 * RUNWAY_HALF_WIDTH;
+  ctx.save();
+  ctx.scale(runwayCanvas.width / width, runwayCanvas.height / length);
+  ctx.fillStyle = '#c9cac3';
+  for (const x of [3, width - 4]) ctx.fillRect(x, 5, 1, length - 10);
+  for (let y = 140; y + 30 < length - 140; y += 60) ctx.fillRect(width / 2 - .75, y, 1.5, 30);
+  ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const end of [-1, 1]) {
+    ctx.save();
+    ctx.translate(width / 2, end > 0 ? length : 0);
+    if (end < 0) ctx.rotate(Math.PI);
+    for (let i = 0; i < 5; i++) {
+      for (const side of [-1, 1]) ctx.fillRect(side * (7 + i * 6) - 1.8, -38, 3.6, 25);
+    }
+    for (const x of [-30, 24]) ctx.fillRect(x, -345, 6, 45);
+    ctx.fillText(end > 0 ? '36' : '18', 0, -80);
+    ctx.restore();
+  }
+  ctx.restore();
   const runwayTexture = new THREE.CanvasTexture(runwayCanvas); runwayTexture.colorSpace = THREE.SRGBColorSpace; runwayTexture.anisotropy = 8;
-  const runway = new THREE.Mesh(new THREE.PlaneGeometry(90, 1800), new THREE.MeshStandardMaterial({ map: runwayTexture, roughness: 0.95 }));
-  runway.rotation.x = -Math.PI / 2; runway.position.y = 9.11; runway.receiveShadow = true; scene.add(runway);
+  const runway = new THREE.Mesh(new THREE.PlaneGeometry(width, length), new THREE.MeshStandardMaterial({ map: runwayTexture, roughness: 0.95 }));
+  runway.name = 'runway-pavement';
+  runway.rotation.x = -Math.PI / 2; runway.position.y = RUNWAY_ELEVATION + .11; runway.receiveShadow = true; scene.add(runway);
 
-  const edgeCount = 62;
+  const litExtent = RUNWAY_HALF_LENGTH - 20;
+  const edgeCount = Math.ceil(2 * litExtent / 30) + 1;
   const edgeLights = new THREE.InstancedMesh(new THREE.SphereGeometry(0.6, 6, 4), new THREE.MeshBasicMaterial({ color: 0xb9efff }), edgeCount * 2);
+  dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(1);
   for (let i = 0; i < edgeCount; i++) for (let side = 0; side < 2; side++) {
-    dummy.position.set(side ? 47 : -47, 9.8, -880 + i * 1760 / (edgeCount - 1)); dummy.rotation.set(0, 0, 0); dummy.scale.setScalar(1); dummy.updateMatrix(); edgeLights.setMatrixAt(i * 2 + side, dummy.matrix);
+    const z = litExtent * (2 * i / (edgeCount - 1) - 1);
+    dummy.position.set((side ? 1 : -1) * (RUNWAY_HALF_WIDTH + 2), RUNWAY_ELEVATION + .8, z);
+    dummy.updateMatrix(); edgeLights.setMatrixAt(i * 2 + side, dummy.matrix);
   }
   scene.add(edgeLights);
   const threshold = new THREE.InstancedMesh(new THREE.SphereGeometry(0.85, 6, 4), new THREE.MeshBasicMaterial({ color: 0x8dffc9 }), 20);
-  for (let i = 0; i < 20; i++) { dummy.position.set(-39 + (i % 10) * 8.65, 9.8, i < 10 ? 905 : -905); dummy.updateMatrix(); threshold.setMatrixAt(i, dummy.matrix); } scene.add(threshold);
+  for (let i = 0; i < 20; i++) {
+    dummy.position.set((i % 10 / 9 * 2 - 1) * (RUNWAY_HALF_WIDTH - 6), RUNWAY_ELEVATION + .8, (i < 10 ? 1 : -1) * (RUNWAY_HALF_LENGTH + 5));
+    dummy.updateMatrix(); threshold.setMatrixAt(i, dummy.matrix);
+  }
+  scene.add(threshold);
 
   // Windsock provides a small readable landmark beside the south threshold.
-  box(0.7, 18, 0.7, -78, 18, 720, cream);
+  const windsockZ = RUNWAY_HALF_LENGTH - 180;
+  box(0.7, 18, 0.7, -78, RUNWAY_ELEVATION + 9, windsockZ, cream);
   const windsock = new THREE.Mesh(new THREE.ConeGeometry(2.3, 12, 10, 1, true), new THREE.MeshStandardMaterial({ color: 0xf8895a, side: THREE.DoubleSide }));
-  windsock.rotation.z = -Math.PI / 2 - 0.12; windsock.position.set(-72, 26, 720); scene.add(windsock);
-
+  windsock.rotation.z = -Math.PI / 2 - 0.12; windsock.position.set(-72, RUNWAY_ELEVATION + 17, windsockZ); scene.add(windsock);
 
   // Skid marks and apron seams make the airport read at jet approach speed.
   const markCanvas=document.createElement('canvas');markCanvas.width=256;markCanvas.height=1024;
@@ -305,8 +328,8 @@ export function createEnvironment(scene, renderer) {
   }
   const markTexture=new THREE.CanvasTexture(markCanvas);
   const marksMaterial=new THREE.MeshBasicMaterial({map:markTexture,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
-  for(const z of [-610,610]){
-    const skid=new THREE.Mesh(new THREE.PlaneGeometry(55,480),marksMaterial);skid.rotation.x=-Math.PI/2;skid.position.set(0,9.125,z);scene.add(skid);
+  for(const z of [290 - RUNWAY_HALF_LENGTH, RUNWAY_HALF_LENGTH - 290]){
+    const skid=new THREE.Mesh(new THREE.PlaneGeometry(55,480),marksMaterial);skid.rotation.x=-Math.PI/2;skid.position.set(0,RUNWAY_ELEVATION+.125,z);scene.add(skid);
   }
   let currentWeather;
   function setWeather(weather='clear'){

@@ -1,6 +1,8 @@
 /** Approachable high-performance jet model. Metres, seconds and radians. */
+import { RUNWAY_ELEVATION, RUNWAY_START_Z, runwayAt } from './airfield.js?v=5';
+
 const TAU = Math.PI * 2;
-const REST_HEIGHT = 11.8;
+const REST_HEIGHT = RUNWAY_ELEVATION + 2.8;
 const MAX_ALTITUDE = 12500;
 const MAX_SPEED = 430;
 const TRIM_PITCH = 0.035;
@@ -9,11 +11,10 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finite = (value, fallback) => Number.isFinite(value) ? value : fallback;
 const damp = (current, target, rate, dt) => current + (target - current) * (1 - Math.exp(-rate * dt));
 const wrap = angle => ((angle + Math.PI) % TAU + TAU) % TAU - Math.PI;
-const runwayAt = (x, z) => Math.abs(x) <= 45 && Math.abs(z) <= 900;
 
 export function createFlight({ airborne = false } = {}) {
   return {
-    x: 0, y: airborne ? 140 : REST_HEIGHT, z: airborne ? 2300 : 650,
+    x: 0, y: airborne ? 140 : REST_HEIGHT, z: airborne ? 2300 : RUNWAY_START_Z,
     heading: 0, pitch: airborne ? TRIM_PITCH : 0, roll: 0,
     speed: airborne ? 240 : 0, verticalSpeed: 0,
     throttle: airborne ? 0.82 : 0,
